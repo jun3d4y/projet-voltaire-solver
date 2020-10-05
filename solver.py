@@ -4,9 +4,6 @@ from bs4 import BeautifulSoup
 import difflib
 import os
 
-global last_ones
-last_ones = []
-
 def print_logo() :
     os.system('color')
     os.system('cls')
