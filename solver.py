@@ -3,6 +3,8 @@ from seleniumwire import webdriver
 from bs4 import BeautifulSoup
 import difflib
 import os
+import brotli
+import html
 
 def print_logo() :
     os.system('color')
@@ -27,7 +29,7 @@ def print_logo() :
    ╚═══════════════════════════════════════════════════╝
 
     \033[1;37;40m
-                                  [\033[1;31;40mdevelopped by JuneDay\033[1;37;40m]\n
+                    [\033[1;31;40mdevelopped by JuneDay, hortiSquash, and citrusMarmelade\033[1;37;40m]\n
 
  """)
 
@@ -64,11 +66,18 @@ class Driver :
             if request.response and request.url == 'https://www.projet-voltaire.fr/services-pjv/gwt/WolLearningContentWebService':
                 if len(request.response.body)>longueur and request.response.body not in self.last_ones:
                     content = request.response.body
+                    response = request.response
                     longueur = len(request.response.body)
         self.last_ones.append(content)
 
         #parsing des réponses
-        content = str(content)
+        if response.headers.get("content-encoding") == "br":
+            content = brotli.decompress(content)
+        content = content.decode(([
+            splitted[1]
+            for chunk in response.headers.get("content-type").split(";")
+            if (splitted := chunk.split("="))[0] == "charset"
+        ] + ["latin-1"])[0])
         content = content.replace('//OK', '')
         content = content.strip('][')
         content = content.replace('],0,7]', '')
@@ -83,7 +92,11 @@ class Driver :
         responses = []
         for line in to_process :
             if "\\x3E" in line :
-                responses.append(line.replace(']', '').replace('"', '').replace('\\\\xA0', '').replace('\\\\x3CB\\\\x3E', '<').replace('\\\\x3C/B\\\\x3E', '>').replace('\\\\x27', '\''))
+                line = line.replace(']', '').replace('"', '')
+                # decode unicode escapes, at least reliable over all UTF-8
+                # except if it contains a \ that isn't part of an escape because fuck you.
+                line = line.encode("unicode_escape").replace(b"\\\\", b"\\").decode("unicode_escape")
+                responses.append(html.unescape(line.replace("<B>", "\033[1;91;40m").replace("</B>", "\033[1;37;40m")))
         return responses
 
     def is_homepage(self) :
@@ -115,7 +128,6 @@ input('[  \033[1;32;40mSETUP\033[1;37;40m  ] Connectez-vous, puis appuyez sur en
 input('[  \033[1;32;40mSETUP\033[1;37;40m  ] Choisissez un test, puis appuyez sur entrer ...')
 reponses = driver.get_data()
 while True :
-    print_logo()
     if driver.is_audio() :
         print('[  \033[1;32;40mAUDIO\033[1;37;40m  ] C\'est une question audio, faites-la vous-même !')
         while driver.is_audio():
